@@ -13,7 +13,7 @@ export function useStockScreener() {
   const { data: allStocks = [], isLoading, error } = useQuery<Stock[]>({
     queryKey: ["stocks"],
     queryFn: async () => {
-      const res = await fetch("http://localhost:3001/api/stocks");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/stocks`);
       if (!res.ok) throw new Error("Failed to fetch stocks from server");
       return res.json();
     }

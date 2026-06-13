@@ -179,7 +179,7 @@ export const useScreenerStore = create<ScreenerStoreState>()(
         state.isLoadingStocks = true;
       });
       try {
-        const res = await fetch("http://localhost:3001/api/stocks");
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/stocks`);
         if (!res.ok) throw new Error("Server returned HTTP error code");
         const data = (await res.json()) as Stock[];
         set((state) => {
