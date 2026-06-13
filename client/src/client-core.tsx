@@ -383,7 +383,13 @@ export function calculateRSI(data: Candle[], period: number = 14): ChartPoint[] 
     avgGain = (avgGain * (period - 1) + currentGain) / period;
     avgLoss = (avgLoss * (period - 1) + currentLoss) / period;
 
-    rsi = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+    if (avgLoss === 0) {
+      rsi = 100;
+    } else if (avgGain === 0) {
+      rsi = 0;
+    } else {
+      rsi = 100 - 100 / (1 + avgGain / avgLoss);
+    }
     result.push({ time: data[i].time, value: rsi });
   }
   return result;
@@ -414,9 +420,34 @@ export function calculateVolumeProfile(data: Candle[], numBins: number = 24): { 
   });
 
   data.forEach((c) => {
-    const binIdx = Math.min(Math.floor((c.close - minPrice) / binSize), numBins - 1);
-    if (binIdx >= 0 && binIdx < numBins) {
-      bins[binIdx].volume += c.volume;
+    // Determine which bins this candle overlaps
+    const startBinIdx = Math.max(0, Math.floor((c.low - minPrice) / binSize));
+    const endBinIdx = Math.min(numBins - 1, Math.floor((c.high - minPrice) / binSize));
+
+    if (startBinIdx === endBinIdx) {
+      if (startBinIdx >= 0 && startBinIdx < numBins) {
+        bins[startBinIdx].volume += c.volume;
+      }
+    } else {
+      const totalSpan = c.high - c.low;
+      if (totalSpan > 0) {
+        for (let i = startBinIdx; i <= endBinIdx; i++) {
+          if (i >= 0 && i < numBins) {
+            const binMin = bins[i].priceMin;
+            const binMax = bins[i].priceMax;
+            const overlapMin = Math.max(c.low, binMin);
+            const overlapMax = Math.min(c.high, binMax);
+            const overlapRatio = (overlapMax - overlapMin) / totalSpan;
+            if (overlapRatio > 0) {
+              bins[i].volume += c.volume * overlapRatio;
+            }
+          }
+        }
+      } else {
+        if (startBinIdx >= 0 && startBinIdx < numBins) {
+          bins[startBinIdx].volume += c.volume;
+        }
+      }
     }
   });
 

@@ -993,7 +993,10 @@ export function StockChart({ symbol }: { symbol: string }) {
     rsi70Series.setData(historyWithLiveTick.map(c => ({ time: c.time as unknown as UTCTimestamp, value: 70 })));
 
     mainChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
-      if (range) rsiChart.timeScale().setVisibleLogicalRange(range);
+      if (range) {
+        rsiChart.timeScale().setVisibleLogicalRange(range);
+        drawVolumeProfile();
+      }
     });
 
     rsiChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
@@ -1002,7 +1005,7 @@ export function StockChart({ symbol }: { symbol: string }) {
 
     const drawVolumeProfile = () => {
       const canvas = overlayCanvasRef.current;
-      if (!canvas || !mainChartRef.current || !showVolProfile || !indicators?.volProfile) return;
+      if (!canvas || !mainChartRef.current || !showVolProfile) return;
 
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
@@ -1011,7 +1014,20 @@ export function StockChart({ symbol }: { symbol: string }) {
       canvas.height = 320;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      const { bins } = indicators.volProfile;
+      const range = mainChart.timeScale().getVisibleLogicalRange();
+      let visibleData = historyWithLiveTick;
+      if (range) {
+        const startIdx = Math.max(0, Math.floor(range.from));
+        const endIdx = Math.min(historyWithLiveTick.length - 1, Math.ceil(range.to));
+        if (startIdx <= endIdx) {
+          visibleData = historyWithLiveTick.slice(startIdx, endIdx + 1);
+        }
+      }
+
+      if (visibleData.length === 0) return;
+      const volProfile = calculateVolumeProfile(visibleData, 24);
+      const { bins } = volProfile;
+
       const maxVol = Math.max(...bins.map(b => b.volume));
       const profileWidth = canvas.width * 0.25;
 
