@@ -21,6 +21,7 @@ import {
   CandlestickSeries,
   LineSeries
 } from "lightweight-charts";
+import { formatCurrency, formatVolume } from "./utils/formatters";
 import {
   Activity,
   Sliders,
@@ -124,7 +125,7 @@ const PriceCell = React.memo(({ symbol, initialPrice }: { symbol: string; initia
 
   return (
     <span className={`inline-block px-1 rounded transition-colors duration-300 font-mono text-white ${flashClass}`}>
-      ${price.toFixed(2)}
+      {formatCurrency(price)}
     </span>
   );
 });
@@ -563,9 +564,7 @@ export function ScreenerGrid({ stocks }: ScreenerGridProps) {
         size: 120,
         cell: (info) => {
           const val = info.getValue() as number;
-          if (val >= 1e12) return `$${(val / 1e12).toFixed(2)}T`;
-          if (val >= 1e9) return `$${(val / 1e9).toFixed(2)}B`;
-          return `$${(val / 1e6).toFixed(2)}M`;
+          return formatCurrency(val);
         }
       },
       {
@@ -1025,7 +1024,9 @@ export function StockChart({ symbol }: { symbol: string }) {
       }
 
       if (visibleData.length === 0) return;
-      const volProfile = calculateVolumeProfile(visibleData, 24);
+      // Dynamically divide into 30 to 50 buckets depending on data scale
+      const dynamicBins = Math.max(30, Math.min(50, Math.floor(visibleData.length / 5)));
+      const volProfile = calculateVolumeProfile(visibleData, dynamicBins);
       const { bins } = volProfile;
 
       const maxVol = Math.max(...bins.map(b => b.volume));
@@ -1204,7 +1205,7 @@ export function StockChart({ symbol }: { symbol: string }) {
                         <td className="p-2 text-emerald-500">${candle.high.toFixed(2)}</td>
                         <td className="p-2 text-rose-500">${candle.low.toFixed(2)}</td>
                         <td className="p-2 font-semibold">${candle.close.toFixed(2)}</td>
-                        <td className="p-2 text-zinc-400">{candle.volume.toLocaleString()}</td>
+                        <td className="p-2 text-zinc-400">{formatVolume(candle.volume)}</td>
                         <td className="p-2 text-cyan-400">
                           {rsiVal !== undefined ? rsiVal.toFixed(2) : "N/A"}
                         </td>
@@ -1238,11 +1239,9 @@ export function StockDetails({ symbol }: { symbol: string }) {
 
   const { ratios, incomeStatement, balanceSheet } = details;
 
-  const formatCurrency = (val?: number) => {
+  const formatDetailsCurrency = (val?: number) => {
     if (val === undefined) return "N/A";
-    if (val >= 1e9) return `$${(val / 1e9).toFixed(2)}B`;
-    if (val >= 1e6) return `$${(val / 1e6).toFixed(2)}M`;
-    return `$${val.toLocaleString()}`;
+    return formatCurrency(val);
   };
 
   return (

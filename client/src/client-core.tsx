@@ -874,6 +874,10 @@ let globalWsPromise: Promise<WebSocket> | null = null;
 const globalSubscriptions = new Set<string>();
 const subscriptionRefs = new Map<string, number>();
 
+let reconnectAttempt = 0;
+let reconnectTimeoutId: NodeJS.Timeout | null = null;
+const MAX_RECONNECT_DELAY = 30000;
+
 let tickBuffer: {
   symbol: string;
   price: number;
@@ -912,6 +916,7 @@ function getWebSocket(): Promise<WebSocket> {
       ws.onopen = () => {
         globalWs = ws;
         globalWsPromise = null;
+        reconnectAttempt = 0;
         useScreenerStore.getState().setConnectionStatus("connected");
         globalSubscriptions.forEach((sym) => {
           ws.send(JSON.stringify({ type: "subscribe", channel: `subscribe:price:${sym}` }));
@@ -934,9 +939,15 @@ function getWebSocket(): Promise<WebSocket> {
         globalWs = null;
         globalWsPromise = null;
         useScreenerStore.getState().setConnectionStatus("disconnected");
-        setTimeout(() => {
+        
+        if (reconnectTimeoutId) clearTimeout(reconnectTimeoutId);
+        
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempt), MAX_RECONNECT_DELAY);
+        reconnectAttempt++;
+        
+        reconnectTimeoutId = setTimeout(() => {
           getWebSocket().catch((err) => console.error("WS reconnect failed:", err));
-        }, 3000);
+        }, delay);
       };
 
       ws.onerror = (err) => {
@@ -1014,7 +1025,13 @@ export function useWebSocket(symbols: string[]) {
             }
           });
         })
-        .catch((err) => console.error("Failed to cleanup WS in hook:", err));
+        .catch((err) => console.error("Failed to cleanup WS in hook:", err))
+        .finally(() => {
+          if (globalSubscriptions.size === 0 && reconnectTimeoutId) {
+            clearTimeout(reconnectTimeoutId);
+            reconnectTimeoutId = null;
+          }
+        });
     };
   }, []);
 }
