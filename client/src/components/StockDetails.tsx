@@ -46,7 +46,7 @@ export default function StockDetails({ symbol }: StockDetailsProps) {
   const { data: details, isLoading, error } = useQuery<FundamentalsResponse>({
     queryKey: ["fundamentals", symbol],
     queryFn: async () => {
-      const res = await fetch(`http://localhost:3001/api/stocks/${symbol}/fundamentals`);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/stocks/${symbol}/fundamentals`);
       if (!res.ok) throw new Error("Failed to load fundamentals");
       return res.json();
     },

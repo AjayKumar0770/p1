@@ -812,7 +812,7 @@ export function StockChart({ symbol }: { symbol: string }) {
     if (!symbol) return;
     setIsLoading(true);
     setError(null);
-    fetch(`http://localhost:3001/api/stocks/${symbol}/history`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/stocks/${symbol}/history`)
       .then((res) => {
         if (!res.ok) throw new Error("Candles request failed");
         return res.json() as Promise<Candle[]>;

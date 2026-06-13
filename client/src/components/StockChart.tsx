@@ -36,7 +36,7 @@ export default function StockChart({ symbol }: StockChartProps) {
   const { data: history = [], isLoading, error } = useQuery<Candle[]>({
     queryKey: ["history", symbol],
     queryFn: async () => {
-      const res = await fetch(`http://localhost:3001/api/stocks/${symbol}/history`);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/stocks/${symbol}/history`);
       if (!res.ok) throw new Error("Failed to load historical data");
       return res.json();
     },

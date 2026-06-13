@@ -197,7 +197,7 @@ export const useScreenerStore = create<ScreenerStoreState>()(
     loadFundamentals: async (symbol: string) => {
       if (get().fundamentals[symbol]) return;
       try {
-        const res = await fetch(`http://localhost:3001/api/stocks/${symbol}/fundamentals`);
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/stocks/${symbol}/fundamentals`);
         if (!res.ok) throw new Error("Fundamentals fetch failed");
         const data = (await res.json()) as Fundamentals;
         set((state) => {
@@ -868,7 +868,7 @@ export function stableSortStocks(
 // 5. WEBSOCKET CONTROLLER & RENDER FRAME BUFFER
 // ============================================================================
 
-const WS_URL = "ws://localhost:3001";
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001";
 let globalWs: WebSocket | null = null;
 let globalWsPromise: Promise<WebSocket> | null = null;
 const globalSubscriptions = new Set<string>();

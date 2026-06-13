@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useStreamStore } from "../stores/streamStore";
 
-const WS_URL = "ws://localhost:3001";
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001";
 
 let globalWs: WebSocket | null = null;
 let globalWsPromise: Promise<WebSocket> | null = null;
