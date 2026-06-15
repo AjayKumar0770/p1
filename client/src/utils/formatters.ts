@@ -1,4 +1,4 @@
-export function formatCurrency(value: number): string {
+export function formatCurrency(value: number | undefined): string {
   if (typeof value !== "number" || isNaN(value)) return "₹0.00";
 
   // Handle large abbreviations
@@ -18,7 +18,7 @@ export function formatCurrency(value: number): string {
   }).format(value);
 }
 
-export function formatVolume(value: number): string {
+export function formatVolume(value: number | undefined): string {
   if (typeof value !== "number" || isNaN(value)) return "0";
 
   if (value >= 1e7) {

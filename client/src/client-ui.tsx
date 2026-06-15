@@ -8,6 +8,8 @@ import React, {
   createContext,
   useContext
 } from "react";
+import dynamic from "next/dynamic";
+import { useShallow } from "zustand/react/shallow";
 import {
   useReactTable,
   getCoreRowModel,
@@ -15,13 +17,7 @@ import {
   flexRender
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import {
-  createChart,
-  UTCTimestamp,
-  CandlestickSeries,
-  LineSeries
-} from "lightweight-charts";
-import { formatCurrency, formatVolume } from "./utils/formatters";
+import { formatCurrency } from "./utils/formatters";
 import {
   Activity,
   Sliders,
@@ -36,11 +32,7 @@ import {
   Landmark,
   TrendingUp,
   DollarSign,
-  ShieldAlert,
-  Eye,
-  EyeOff,
-  LineChart,
-  BarChart3,
+
   ArrowUp,
   ArrowDown,
   ChevronDown,
@@ -49,13 +41,6 @@ import {
 } from "lucide-react";
 import {
   Stock,
-  LivePrice,
-  Candle,
-  calculateSMA,
-  calculateEMA,
-  calculateBollingerBands,
-  calculateRSI,
-  calculateVolumeProfile,
   useScreenerStore,
   useWebSocket,
   useStockScreener
@@ -177,15 +162,24 @@ const FilterPanelContext = createContext<FilterPanelContextProps | null>(null);
 
 export function FilterPanel({ children }: { children: React.ReactNode }) {
   const {
-    rawFilterString,
-    setRawFilterString,
-    filterError,
-    columnVisibility,
-    setColumnVisibility,
-    resetFilters,
-    registerSubFilter,
-    unregisterSubFilter
-  } = useScreenerStore();
+      rawFilterString,
+      setRawFilterString,
+      filterError,
+      columnVisibility,
+      setColumnVisibility,
+      resetFilters,
+      registerSubFilter,
+      unregisterSubFilter
+    } = useScreenerStore(useShallow(state => ({
+      rawFilterString: state.rawFilterString,
+      setRawFilterString: state.setRawFilterString,
+      filterError: state.filterError,
+      columnVisibility: state.columnVisibility,
+      setColumnVisibility: state.setColumnVisibility,
+      resetFilters: state.resetFilters,
+      registerSubFilter: state.registerSubFilter,
+      unregisterSubFilter: state.unregisterSubFilter
+    })));
 
   const presets = [
     {
@@ -239,6 +233,7 @@ export function FilterPanel({ children }: { children: React.ReactNode }) {
           
           <input
             type="text"
+            aria-label="Filter stocks using custom expressions"
             value={rawFilterString}
             onChange={(e) => setRawFilterString(e.target.value)}
             placeholder='e.g., peRatio < 20 AND marketCap > 50000000000 AND rsi14 < 35'
@@ -293,6 +288,7 @@ export function FilterPanel({ children }: { children: React.ReactNode }) {
                   key={key}
                   onClick={() => handleToggleColumn(key)}
                   className="flex items-center gap-1.5 text-zinc-400 hover:text-white transition select-none"
+                  aria-pressed={isVisible}
                 >
                   {isVisible ? (
                     <CheckSquare className="h-3.5 w-3.5 text-amber-500" />
@@ -354,6 +350,7 @@ FilterPanel.NumericRange = function NumericRange({
             value={valMin}
             onChange={(e) => setValMin(Math.min(parseFloat(e.target.value), valMax))}
             className="w-1/2 accent-amber-500 cursor-pointer h-1 bg-zinc-800 rounded-lg appearance-none"
+            aria-label={`Minimum ${label}`}
           />
           <input
             type="range"
@@ -363,6 +360,7 @@ FilterPanel.NumericRange = function NumericRange({
             value={valMax}
             onChange={(e) => setValMax(Math.max(parseFloat(e.target.value), valMin))}
             className="w-1/2 accent-amber-500 cursor-pointer h-1 bg-zinc-800 rounded-lg appearance-none"
+            aria-label={`Maximum ${label}`}
           />
         </div>
       </div>
@@ -422,20 +420,24 @@ FilterPanel.Dropdown = function Dropdown({
       <button
         onClick={() => setOpen(!open)}
         className="w-full bg-zinc-950 border border-zinc-800 hover:border-zinc-700 text-left text-xs text-white px-2.5 py-1.5 rounded-lg flex items-center justify-between transition"
+        aria-haspopup="listbox"
+        aria-expanded={open}
       >
         <span className="truncate">
           {selected.length === 0 ? "Select options..." : `${selected.length} selected`}
         </span>
-        <ChevronDown className="h-3.5 w-3.5 text-zinc-500" />
+        <ChevronDown className="h-3.5 w-3.5 text-zinc-400" />
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 top-full mt-1 bg-zinc-900 border border-zinc-800 rounded-lg max-h-40 overflow-y-auto z-40 p-1 shadow-2xl">
+        <div className="absolute left-0 right-0 top-full mt-1 bg-zinc-900 border border-zinc-800 rounded-lg max-h-40 overflow-y-auto z-40 p-1 shadow-2xl" role="listbox">
           {options.map((opt) => {
             const isSel = selected.includes(opt);
             return (
               <button
                 key={opt}
+                role="option"
+                aria-selected={isSel}
                 onClick={() => toggleOption(opt)}
                 className="w-full text-left text-xs hover:bg-zinc-850 px-2 py-1.5 rounded flex items-center justify-between text-zinc-300 hover:text-white transition"
               >
@@ -477,18 +479,20 @@ FilterPanel.BooleanToggle = function BooleanToggle({
     <div className="bg-zinc-900 border border-zinc-800/80 p-3 rounded-lg flex items-center justify-between">
       <div>
         <span className="text-xs font-semibold text-zinc-300 block">{label}</span>
-        <span className="text-[10px] text-zinc-500 block font-mono mt-0.5 truncate max-w-[150px]" title={expression}>
+        <span className="text-[10px] text-zinc-400 block font-mono mt-0.5 truncate max-w-[150px]" title={expression}>
           {expression}
         </span>
       </div>
       <button
         onClick={() => setActive(!active)}
         className="text-zinc-400 hover:text-white transition focus:outline-none"
+        aria-pressed={active}
+        aria-label={`Toggle ${label}`}
       >
         {active ? (
-          <ToggleRight className="h-7 w-7 text-amber-500" />
+          <ToggleRight className="h-7 w-7 text-amber-500" aria-hidden="true" />
         ) : (
-          <ToggleLeft className="h-7 w-7 text-zinc-600" />
+          <ToggleLeft className="h-7 w-7 text-zinc-400" aria-hidden="true" />
         )}
       </button>
     </div>
@@ -507,12 +511,18 @@ export function ScreenerGrid({ stocks }: ScreenerGridProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   
   const {
-    selectedSymbol,
-    setSelectedSymbol,
-    columnVisibility,
-    sorting,
-    setSorting
-  } = useScreenerStore();
+      selectedSymbol,
+      setSelectedSymbol,
+      columnVisibility,
+      sorting,
+      setSorting
+    } = useScreenerStore(useShallow(state => ({
+      selectedSymbol: state.selectedSymbol,
+      setSelectedSymbol: state.setSelectedSymbol,
+      columnVisibility: state.columnVisibility,
+      sorting: state.sorting,
+      setSorting: state.setSorting
+    })));
 
   const columns = useMemo<ColumnDef<Stock>[]>(
     () => [
@@ -618,6 +628,7 @@ export function ScreenerGrid({ stocks }: ScreenerGridProps) {
     []
   );
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: stocks,
     columns,
@@ -641,7 +652,7 @@ export function ScreenerGrid({ stocks }: ScreenerGridProps) {
     count: rows.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 36,
-    overscan: 12
+    overscan: 10
   });
 
   const virtualItems = rowVirtualizer.getVirtualItems();
@@ -700,7 +711,7 @@ export function ScreenerGrid({ stocks }: ScreenerGridProps) {
       }
     }, 50);
     return () => clearTimeout(timer);
-  }, [focusedRow, focusedCol, rows.length]);
+  }, [focusedRow, focusedCol, rows.length, rowVirtualizer]);
 
   return (
     <div className="flex flex-col h-full bg-zinc-950 rounded-xl border border-zinc-800 shadow-xl overflow-hidden">
@@ -709,15 +720,14 @@ export function ScreenerGrid({ stocks }: ScreenerGridProps) {
         className="flex-1 overflow-auto focus:outline-none"
         onKeyDown={handleKeyDown}
         tabIndex={0}
-        role="grid"
+        role="grid" aria-label="Interactive stock screening grid"
         aria-rowcount={rows.length}
         aria-colcount={visibleHeadersCount}
-        aria-label="Stock Screener Data Grid"
       >
         {/* Table Header */}
         <div className="sticky top-0 bg-zinc-900 border-b border-zinc-800 z-20 flex" role="row">
           {table.getHeaderGroups().map((headerGroup) => (
-            <div key={headerGroup.id} className="flex w-full">
+            <div key={headerGroup.id} className="flex w-full" role="presentation">
               {headerGroup.headers.map((header) => {
                 const isSorted = header.column.getIsSorted();
                 return (
@@ -791,436 +801,6 @@ export function ScreenerGrid({ stocks }: ScreenerGridProps) {
 // 5. TRADINGVIEW LIGHTWEIGHT CHARTS CANVAS CONTAINER
 // ============================================================================
 
-export function StockChart({ symbol }: { symbol: string }) {
-  const mainChartRef = useRef<HTMLDivElement>(null);
-  const rsiChartRef = useRef<HTMLDivElement>(null);
-  const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
-
-  const [showSMA, setShowSMA] = useState(true);
-  const [showEMA, setShowEMA] = useState(true);
-  const [showBB, setShowBB] = useState(true);
-  const [showVolProfile, setShowVolProfile] = useState(true);
-  const [showTabularData, setShowTabularData] = useState(false);
-
-  const [history, setHistory] = useState<Candle[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Fetch candlestick history
-  useEffect(() => {
-    if (!symbol) return;
-    setIsLoading(true);
-    setError(null);
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/stocks/${symbol}/history`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Candles request failed");
-        return res.json() as Promise<Candle[]>;
-      })
-      .then((data) => {
-        setHistory(data);
-        setIsLoading(false);
-      })
-      .catch((err) => {
-        console.error(err);
-        setError("Failed to load candles history");
-        setIsLoading(false);
-      });
-  }, [symbol]);
-
-  // Live WebSocket Tick Binding for Chart
-  const livePrice = useScreenerStore((state) => state.prices[symbol]);
-
-  // Combine history with latest live price delta tick
-  const historyWithLiveTick = useMemo(() => {
-    if (history.length === 0) return [];
-    if (!livePrice) return history;
-
-    const last = history[history.length - 1];
-    const liveTime = new Date().toISOString().split("T")[0];
-
-    const currentLiveCandle: Candle = {
-      time: liveTime,
-      open: last.time === liveTime ? last.open : last.close,
-      high: last.time === liveTime ? Math.max(last.high, livePrice.price) : Math.max(last.close, livePrice.price),
-      low: last.time === liveTime ? Math.min(last.low, livePrice.price) : Math.min(last.close, livePrice.price),
-      close: livePrice.price,
-      volume: last.time === liveTime ? last.volume : livePrice.volume
-    };
-
-    if (last.time === liveTime) {
-      return [...history.slice(0, -1), currentLiveCandle];
-    } else {
-      return [...history, currentLiveCandle];
-    }
-  }, [history, livePrice]);
-
-  const indicators = useMemo(() => {
-    if (historyWithLiveTick.length === 0) return null;
-
-    const sma50 = calculateSMA(historyWithLiveTick, 50);
-    const ema12 = calculateEMA(historyWithLiveTick, 12);
-    const ema26 = calculateEMA(historyWithLiveTick, 26);
-    const bb = calculateBollingerBands(historyWithLiveTick, 20, 2);
-    const rsi = calculateRSI(historyWithLiveTick, 14);
-    const volProfile = calculateVolumeProfile(historyWithLiveTick, 24);
-
-    return { sma50, ema12, ema26, bb, rsi, volProfile };
-  }, [historyWithLiveTick]);
-
-  useEffect(() => {
-    if (isLoading || historyWithLiveTick.length === 0 || !mainChartRef.current || !rsiChartRef.current) return;
-
-    mainChartRef.current.innerHTML = "";
-    rsiChartRef.current.innerHTML = "";
-
-    const themeColors = {
-      background: "#18181b",
-      grid: "#27272a",
-      text: "#a1a1aa",
-      upColor: "#10b981",
-      downColor: "#ef4444",
-      smaColor: "#f59e0b",
-      ema12Color: "#3b82f6",
-      ema26Color: "#ec4899",
-      bbMiddle: "#8b5cf6",
-      bbLines: "rgba(139, 92, 246, 0.4)",
-      rsiLine: "#06b6d4",
-      rsiGuide: "#4b5563"
-    };
-
-    const mainChart = createChart(mainChartRef.current, {
-      width: mainChartRef.current.clientWidth || 600,
-      height: 320,
-      layout: {
-        background: { color: themeColors.background },
-        textColor: themeColors.text
-      },
-      grid: {
-        vertLines: { color: themeColors.grid },
-        horzLines: { color: themeColors.grid }
-      },
-      timeScale: {
-        borderColor: themeColors.grid,
-        timeVisible: true
-      }
-    });
-
-    const candleSeries = mainChart.addSeries(CandlestickSeries, {
-      upColor: themeColors.upColor,
-      downColor: themeColors.downColor,
-      borderDownColor: themeColors.downColor,
-      borderUpColor: themeColors.upColor,
-      wickDownColor: themeColors.downColor,
-      wickUpColor: themeColors.upColor
-    });
-
-    candleSeries.setData(
-      historyWithLiveTick.map((c) => ({
-        time: c.time as unknown as UTCTimestamp,
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close
-      }))
-    );
-
-    if (showSMA && indicators?.sma50) {
-      const smaSeries = mainChart.addSeries(LineSeries, {
-        color: themeColors.smaColor,
-        lineWidth: 2,
-        title: "SMA 50"
-      });
-      smaSeries.setData(indicators.sma50.map(p => ({ time: p.time as unknown as UTCTimestamp, value: p.value })));
-    }
-
-    if (showEMA && indicators) {
-      const ema12Series = mainChart.addSeries(LineSeries, {
-        color: themeColors.ema12Color,
-        lineWidth: 1,
-        title: "EMA 12"
-      });
-      ema12Series.setData(indicators.ema12.map(p => ({ time: p.time as unknown as UTCTimestamp, value: p.value })));
-
-      const ema26Series = mainChart.addSeries(LineSeries, {
-        color: themeColors.ema26Color,
-        lineWidth: 1,
-        title: "EMA 26"
-      });
-      ema26Series.setData(indicators.ema26.map(p => ({ time: p.time as unknown as UTCTimestamp, value: p.value })));
-    }
-
-    if (showBB && indicators?.bb) {
-      const bbUpperSeries = mainChart.addSeries(LineSeries, { color: themeColors.bbLines, lineWidth: 1, lineStyle: 1, title: "BB Upper" });
-      const bbMiddleSeries = mainChart.addSeries(LineSeries, { color: themeColors.bbMiddle, lineWidth: 1, title: "BB Middle" });
-      const bbLowerSeries = mainChart.addSeries(LineSeries, { color: themeColors.bbLines, lineWidth: 1, lineStyle: 1, title: "BB Lower" });
-
-      bbUpperSeries.setData(indicators.bb.map(p => ({ time: p.time as unknown as UTCTimestamp, value: p.upper })));
-      bbMiddleSeries.setData(indicators.bb.map(p => ({ time: p.time as unknown as UTCTimestamp, value: p.middle })));
-      bbLowerSeries.setData(indicators.bb.map(p => ({ time: p.time as unknown as UTCTimestamp, value: p.lower })));
-    }
-
-    const rsiChart = createChart(rsiChartRef.current, {
-      width: rsiChartRef.current.clientWidth || 600,
-      height: 120,
-      layout: {
-        background: { color: themeColors.background },
-        textColor: themeColors.text
-      },
-      grid: {
-        vertLines: { color: themeColors.grid },
-        horzLines: { color: themeColors.grid }
-      },
-      timeScale: {
-        borderColor: themeColors.grid
-      }
-    });
-
-    const rsiSeries = rsiChart.addSeries(LineSeries, {
-      color: themeColors.rsiLine,
-      lineWidth: 2,
-      title: "RSI 14"
-    });
-
-    if (indicators?.rsi) {
-      rsiSeries.setData(indicators.rsi.map(p => ({ time: p.time as unknown as UTCTimestamp, value: p.value })));
-    }
-
-    const rsi30Series = rsiChart.addSeries(LineSeries, { color: themeColors.rsiGuide, lineWidth: 1, lineStyle: 3 });
-    rsi30Series.setData(historyWithLiveTick.map(c => ({ time: c.time as unknown as UTCTimestamp, value: 30 })));
-
-    const rsi70Series = rsiChart.addSeries(LineSeries, { color: themeColors.rsiGuide, lineWidth: 1, lineStyle: 3 });
-    rsi70Series.setData(historyWithLiveTick.map(c => ({ time: c.time as unknown as UTCTimestamp, value: 70 })));
-
-    mainChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
-      if (range) {
-        rsiChart.timeScale().setVisibleLogicalRange(range);
-        drawVolumeProfile();
-      }
-    });
-
-    rsiChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
-      if (range) mainChart.timeScale().setVisibleLogicalRange(range);
-    });
-
-    const drawVolumeProfile = () => {
-      const canvas = overlayCanvasRef.current;
-      if (!canvas || !mainChartRef.current || !showVolProfile) return;
-
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      canvas.width = mainChartRef.current.clientWidth;
-      canvas.height = 320;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const range = mainChart.timeScale().getVisibleLogicalRange();
-      let visibleData = historyWithLiveTick;
-      if (range) {
-        const startIdx = Math.max(0, Math.floor(range.from));
-        const endIdx = Math.min(historyWithLiveTick.length - 1, Math.ceil(range.to));
-        if (startIdx <= endIdx) {
-          visibleData = historyWithLiveTick.slice(startIdx, endIdx + 1);
-        }
-      }
-
-      if (visibleData.length === 0) return;
-      // Dynamically divide into 30 to 50 buckets depending on data scale
-      const dynamicBins = Math.max(30, Math.min(50, Math.floor(visibleData.length / 5)));
-      const volProfile = calculateVolumeProfile(visibleData, dynamicBins);
-      const { bins } = volProfile;
-
-      const maxVol = Math.max(...bins.map(b => b.volume));
-      const profileWidth = canvas.width * 0.25;
-
-      bins.forEach((bin) => {
-        const yMin = candleSeries.priceToCoordinate(bin.priceMin);
-        const yMax = candleSeries.priceToCoordinate(bin.priceMax);
-
-        if (yMin === null || yMax === null) return;
-
-        const height = Math.abs(yMax - yMin);
-        const y = Math.min(yMin, yMax);
-        const width = (bin.volume / maxVol) * profileWidth;
-
-        ctx.fillStyle = bin.isPoc ? "rgba(245, 158, 11, 0.4)" : "rgba(161, 161, 170, 0.15)";
-        ctx.strokeStyle = bin.isPoc ? "rgba(245, 158, 11, 0.8)" : "rgba(161, 161, 170, 0.3)";
-        ctx.lineWidth = 1;
-
-        ctx.fillRect(10, y, width, height);
-        ctx.strokeRect(10, y, width, height);
-
-        if (bin.isPoc) {
-          ctx.fillStyle = "#f59e0b";
-          ctx.font = "10px sans-serif";
-          ctx.fillText(`POC: $${((bin.priceMin + bin.priceMax)/2).toFixed(2)}`, width + 15, y + height/2 + 3);
-        }
-      });
-    };
-
-    const handleResize = () => {
-      if (!mainChartRef.current || !rsiChartRef.current) return;
-      mainChart.resize(mainChartRef.current.clientWidth, 320);
-      rsiChart.resize(rsiChartRef.current.clientWidth, 120);
-      drawVolumeProfile();
-    };
-
-    window.addEventListener("resize", handleResize);
-    const timer = setTimeout(drawVolumeProfile, 100);
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      clearTimeout(timer);
-      mainChart.remove();
-      rsiChart.remove();
-    };
-  }, [isLoading, historyWithLiveTick, showSMA, showEMA, showBB, showVolProfile, indicators]);
-
-  if (isLoading) {
-    return (
-      <div className="flex h-[450px] w-full flex-col items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-400">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-amber-500 border-t-transparent"></div>
-        <p className="mt-4 text-sm font-medium">Recompiling Indicator Channels...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex h-[450px] w-full items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950 text-red-400">
-        <p className="text-sm">{error}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="w-full rounded-xl border border-zinc-800 bg-zinc-950 p-4 shadow-2xl">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-            <span className="bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded text-sm font-mono border border-amber-500/20">{symbol}</span>
-            Technical Indicator synchronizer
-          </h2>
-          <p className="text-xs text-zinc-400">Continuous canvas charting overlays & raw momentum evaluation</p>
-        </div>
-
-        {/* Toggles */}
-        <div className="flex flex-wrap gap-2 text-xs">
-          <button
-            onClick={() => setShowSMA(!showSMA)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-medium transition ${
-              showSMA
-                ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
-                : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
-            }`}
-          >
-            {showSMA ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-            SMA 50
-          </button>
-          <button
-            onClick={() => setShowEMA(!showEMA)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-medium transition ${
-              showEMA
-                ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
-                : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
-            }`}
-          >
-            {showEMA ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-            EMA 12/26
-          </button>
-          <button
-            onClick={() => setShowBB(!showBB)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-medium transition ${
-              showBB
-                ? "bg-violet-500/10 border-violet-500/30 text-violet-400"
-                : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
-            }`}
-          >
-            {showBB ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-            Bollinger Bands
-          </button>
-          <button
-            onClick={() => setShowVolProfile(!showVolProfile)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-medium transition ${
-              showVolProfile
-                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
-            }`}
-          >
-            {showVolProfile ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-            Volume Profile
-          </button>
-          <button
-            onClick={() => setShowTabularData(!showTabularData)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-semibold transition ${
-              showTabularData
-                ? "bg-white/10 border-white/20 text-white"
-                : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
-            }`}
-            aria-label="Toggle screen reader accessible historical table"
-          >
-            {showTabularData ? <LineChart className="h-3 w-3" /> : <BarChart3 className="h-3 w-3" />}
-            Tabular View (Accessible)
-          </button>
-        </div>
-      </div>
-
-      <div className="relative">
-        <div className={`space-y-2 ${showTabularData ? "sr-only" : ""}`}>
-          <div className="relative h-[320px] w-full" ref={mainChartRef} />
-          {showVolProfile && (
-            <canvas
-              ref={overlayCanvasRef}
-              className="absolute top-0 left-0 pointer-events-none z-10"
-              style={{ height: 320 }}
-            />
-          )}
-          <div className="h-[120px] w-full" ref={rsiChartRef} />
-        </div>
-
-        {showTabularData && (
-          <div className="h-[448px] overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-900 p-2 font-mono text-xs text-zinc-300">
-            <caption className="text-left py-1 text-zinc-400 font-bold block">Historical metrics log (latest 30 days)</caption>
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-zinc-800 bg-zinc-950 text-zinc-400 uppercase tracking-wider text-[10px]">
-                  <th className="p-2">Date</th>
-                  <th className="p-2">Open</th>
-                  <th className="p-2">High</th>
-                  <th className="p-2">Low</th>
-                  <th className="p-2">Close</th>
-                  <th className="p-2">Volume</th>
-                  <th className="p-2">RSI (14)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historyWithLiveTick
-                  .slice(-30)
-                  .reverse()
-                  .map((candle, idx) => {
-                    const rsiVal = indicators?.rsi?.find(r => r.time === candle.time)?.value;
-                    return (
-                      <tr key={idx} className="border-b border-zinc-800/50 hover:bg-zinc-950/40">
-                        <td className="p-2 text-zinc-400">{candle.time}</td>
-                        <td className="p-2">${candle.open.toFixed(2)}</td>
-                        <td className="p-2 text-emerald-500">${candle.high.toFixed(2)}</td>
-                        <td className="p-2 text-rose-500">${candle.low.toFixed(2)}</td>
-                        <td className="p-2 font-semibold">${candle.close.toFixed(2)}</td>
-                        <td className="p-2 text-zinc-400">{formatVolume(candle.volume)}</td>
-                        <td className="p-2 text-cyan-400">
-                          {rsiVal !== undefined ? rsiVal.toFixed(2) : "N/A"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ============================================================================
 // 6. DETAILED STOCK LEDGER RATIOS DISPLAY
 // ============================================================================
@@ -1238,11 +818,6 @@ export function StockDetails({ symbol }: { symbol: string }) {
   }
 
   const { ratios, incomeStatement, balanceSheet } = details;
-
-  const formatDetailsCurrency = (val?: number) => {
-    if (val === undefined) return "N/A";
-    return formatCurrency(val);
-  };
 
   return (
     <div className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 shadow-xl space-y-6">
@@ -1274,7 +849,7 @@ export function StockDetails({ symbol }: { symbol: string }) {
           <div key={idx} className="bg-zinc-900 border border-zinc-800/60 p-3 rounded-xl hover:border-zinc-700/60 transition duration-150">
             <span className="text-[10px] text-zinc-400 block font-semibold uppercase tracking-wider">{item.label}</span>
             <span className="text-base font-bold text-white font-mono">{item.val}</span>
-            <span className="text-[10px] text-zinc-500 block">{item.desc}</span>
+            <span className="text-[10px] text-zinc-400 block">{item.desc}</span>
           </div>
         ))}
       </div>
@@ -1286,13 +861,13 @@ export function StockDetails({ symbol }: { symbol: string }) {
             Income Statement (YoY)
           </h3>
           <div className="overflow-x-auto">
-            <table className="w-full text-xs font-mono">
+            <table className="w-full text-xs font-mono" aria-label="Detailed stock ratio ledger">
               <thead>
-                <tr className="text-zinc-500 text-left border-b border-zinc-800/80">
-                  <th className="py-1.5 font-semibold">Year</th>
-                  <th className="py-1.5 text-right font-semibold">Revenue</th>
-                  <th className="py-1.5 text-right font-semibold">Gross Profit</th>
-                  <th className="py-1.5 text-right font-semibold">Net Income</th>
+                <tr className="text-zinc-400 text-left border-b border-zinc-800/80">
+                  <th scope="col" className="py-1.5 font-semibold">Year</th>
+                  <th scope="col" className="py-1.5 text-right font-semibold">Revenue</th>
+                  <th scope="col" className="py-1.5 text-right font-semibold">Gross Profit</th>
+                  <th scope="col" className="py-1.5 text-right font-semibold">Net Income</th>
                 </tr>
               </thead>
               <tbody>
@@ -1315,13 +890,13 @@ export function StockDetails({ symbol }: { symbol: string }) {
             Balance Sheet Highlights
           </h3>
           <div className="overflow-x-auto">
-            <table className="w-full text-xs font-mono">
+            <table className="w-full text-xs font-mono" aria-label="Detailed stock ratio ledger">
               <thead>
-                <tr className="text-zinc-500 text-left border-b border-zinc-800/80">
-                  <th className="py-1.5 font-semibold">Year</th>
-                  <th className="py-1.5 text-right font-semibold">Total Assets</th>
-                  <th className="py-1.5 text-right font-semibold">Liabilities</th>
-                  <th className="py-1.5 text-right font-semibold">Equity</th>
+                <tr className="text-zinc-400 text-left border-b border-zinc-800/80">
+                  <th scope="col" className="py-1.5 font-semibold">Year</th>
+                  <th scope="col" className="py-1.5 text-right font-semibold">Total Assets</th>
+                  <th scope="col" className="py-1.5 text-right font-semibold">Liabilities</th>
+                  <th scope="col" className="py-1.5 text-right font-semibold">Equity</th>
                 </tr>
               </thead>
               <tbody>
@@ -1346,9 +921,26 @@ export function StockDetails({ symbol }: { symbol: string }) {
 // 7. MAIN DASHBOARD RENDER ENTRYPOINT
 // ============================================================================
 
+
+const StockChart = dynamic(() => import("./components/StockChart"), { 
+  ssr: false, 
+  loading: () => (
+    <div className="w-full h-[500px] animate-pulse bg-zinc-900 rounded-xl flex items-center justify-center border border-zinc-800 shadow-2xl" aria-busy="true" aria-label="Loading chart data...">
+      <div className="flex flex-col items-center gap-4">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-amber-500 border-t-transparent"></div>
+        <p className="text-sm font-medium text-zinc-400">Initializing chart canvas...</p>
+      </div>
+    </div>
+  )
+});
+
 export default function Home() {
   const { stocks, totalCount, filteredCount, isLoading, error } = useStockScreener();
-  const { selectedSymbol, setSelectedSymbol, rawFilterString, connectionStatus } = useScreenerStore();
+  const { selectedSymbol, rawFilterString, connectionStatus } = useScreenerStore(useShallow(state => ({
+    selectedSymbol: state.selectedSymbol,
+    rawFilterString: state.rawFilterString,
+    connectionStatus: state.connectionStatus
+  })));
   
   const [searchQuery, setSearchQuery] = useState("");
   const [announcement, setAnnouncement] = useState("");
@@ -1363,11 +955,14 @@ export default function Home() {
 
   useEffect(() => {
     if (isLoading) return;
-    if (rawFilterString) {
-      setAnnouncement(`Filtered results updated: ${filteredCount} rows matching criteria`);
-    } else {
-      setAnnouncement("All custom filter filters cleared");
-    }
+    const timer = setTimeout(() => {
+      if (rawFilterString) {
+        setAnnouncement(`Filtered results updated: ${filteredCount} rows matching criteria`);
+      } else {
+        setAnnouncement("All custom filter filters cleared");
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [filteredCount, rawFilterString, isLoading]);
 
   const connectionActive = connectionStatus === "connected";
@@ -1390,7 +985,7 @@ export default function Home() {
           <div>
             <h1 className="text-lg font-extrabold tracking-tight text-white flex items-center gap-1.5">
               AEGIS
-              <span className="text-zinc-500 font-medium text-xs bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded uppercase tracking-wider">
+              <span className="text-zinc-400 font-medium text-xs bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded uppercase tracking-wider">
                 Terminal
               </span>
             </h1>
@@ -1439,9 +1034,10 @@ export default function Home() {
           </div>
           <div className="bg-zinc-900/40 border border-zinc-800/60 p-4 rounded-xl flex items-center justify-center gap-2">
             <div className="relative w-full">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-400" />
               <input
                 type="text"
+                aria-label="Search for a ticker symbol"
                 placeholder="Search ticker or name..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -1475,11 +1071,11 @@ export default function Home() {
               <ScreenerGrid stocks={filteredSearchStocks} />
             </div>
 
-            <div className="h-[500px] overflow-y-auto">
+            <div className="h-[500px] min-h-[500px] w-full overflow-y-auto">
               {selectedSymbol ? (
                 <StockDetails symbol={selectedSymbol} />
               ) : (
-                <div className="h-full flex flex-col items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-500 p-8 text-center text-xs">
+                <div className="h-full flex flex-col items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-400 p-8 text-center text-xs">
                   <Landmark className="h-8 w-8 mb-2 opacity-50" />
                   Select a ticker symbol in the data grid to audit corporate ledger ratios.
                 </div>
@@ -1496,7 +1092,7 @@ export default function Home() {
         )}
       </main>
 
-      <footer className="mt-auto border-t border-zinc-900 bg-zinc-950/40 py-6 text-center text-xs text-zinc-600">
+      <footer className="mt-auto border-t border-zinc-900 bg-zinc-950/40 py-6 text-center text-xs text-zinc-400">
         <p>© 2026 Aegis Terminal. Designed for ultra-low latency canvas visualization.</p>
       </footer>
     </div>

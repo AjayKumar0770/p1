@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import { useEffect, useRef, useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 
 // ============================================================================
 // 1. DATA MODEL & TYPES DEFINITIONS
@@ -187,10 +188,10 @@ export const useScreenerStore = create<ScreenerStoreState>()(
           state.isLoadingStocks = false;
           state.stocksError = null;
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         set((state) => {
           state.isLoadingStocks = false;
-          state.stocksError = err.message || "Failed to load stock list";
+          state.stocksError = err instanceof Error ? err.message : "Failed to load stock list";
         });
       }
     },
@@ -717,7 +718,7 @@ export class Parser {
     return {
       type: "COMPARISON",
       field,
-      operator: op as any,
+      operator: op as ">" | "<" | ">=" | "<=" | "==" | "!=" | "contains",
       value
     };
   }
@@ -761,7 +762,7 @@ export function optimizeAST(node: ASTNode): ASTNode {
 export function evaluateAST(node: ASTNode, stock: Stock, livePrices?: Record<string, LivePrice>): boolean {
   switch (node.type) {
     case "COMPARISON": {
-      let stockValue: any;
+      let stockValue: number | string | undefined;
       if (livePrices && livePrices[stock.symbol] && ["price", "changePercent", "volume"].includes(node.field)) {
         const live = livePrices[stock.symbol];
         if (node.field === "price") stockValue = live.price;
@@ -836,8 +837,8 @@ export function stableSortStocks(
       const field = sortOption.id;
       const desc = sortOption.desc;
 
-      let valA: any;
-      let valB: any;
+      let valA: number | string | undefined;
+      let valB: number | string | undefined;
 
       if (livePrices && ["price", "changePercent", "volume"].includes(field)) {
         valA = livePrices[a.item.symbol]?.[field as keyof LivePrice] ?? a.item[field as keyof Stock];
@@ -854,7 +855,7 @@ export function stableSortStocks(
           const comparison = valA.localeCompare(valB);
           return desc ? -comparison : comparison;
         } else {
-          return desc ? (valB - valA) : (valA - valB);
+          return desc ? (Number(valB) - Number(valA)) : (Number(valA) - Number(valB));
         }
       }
     }
@@ -886,7 +887,7 @@ let tickBuffer: {
   volume: number;
 }[] = [];
 
-let animationFrameId: number | null = null;
+
 
 function processTickBuffer() {
   if (tickBuffer.length > 0) {
@@ -894,11 +895,11 @@ function processTickBuffer() {
     tickBuffer = [];
     useScreenerStore.getState().updatePrices(ticks);
   }
-  animationFrameId = requestAnimationFrame(processTickBuffer);
+  requestAnimationFrame(processTickBuffer);
 }
 
 if (typeof window !== "undefined") {
-  animationFrameId = requestAnimationFrame(processTickBuffer);
+  requestAnimationFrame(processTickBuffer);
 }
 
 function getWebSocket(): Promise<WebSocket> {
@@ -965,7 +966,9 @@ function getWebSocket(): Promise<WebSocket> {
 export function useWebSocket(symbols: string[]) {
   const prevSymbolsRef = useRef<string[]>([]);
   const latestSymbolsRef = useRef<string[]>(symbols);
-  latestSymbolsRef.current = symbols;
+  useEffect(() => {
+    latestSymbolsRef.current = symbols;
+  }, [symbols]);
 
   useEffect(() => {
     const prevSymbols = prevSymbolsRef.current;
@@ -1050,9 +1053,18 @@ export function useStockScreener() {
     activeSubFilters,
     filterError, 
     setFilterError, 
-    sorting, 
-    prices 
-  } = useScreenerStore();
+    sorting
+  } = useScreenerStore(useShallow((state) => ({
+    stocks: state.stocks,
+    isLoadingStocks: state.isLoadingStocks,
+    stocksError: state.stocksError,
+    loadStocks: state.loadStocks,
+    rawFilterString: state.rawFilterString,
+    activeSubFilters: state.activeSubFilters,
+    filterError: state.filterError,
+    setFilterError: state.setFilterError,
+    sorting: state.sorting
+  })));
 
   useEffect(() => {
     loadStocks();
@@ -1087,8 +1099,12 @@ export function useStockScreener() {
       
       setFilterError(null);
       return optimized;
-    } catch (err: any) {
-      setFilterError(err.message || "Query compilation error");
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setFilterError(err.message || "Query compilation error");
+      } else {
+        setFilterError("Query compilation error");
+      }
       return null;
     }
   }, [combinedFilterString, setFilterError]);
@@ -1096,11 +1112,12 @@ export function useStockScreener() {
   const filteredAndSortedStocks = useMemo(() => {
     if (stocks.length === 0) return [];
     let result = stocks;
+    const currentPrices = useScreenerStore.getState().prices;
 
     if (parsedAST) {
       result = stocks.filter((stock) => {
         try {
-          return evaluateAST(parsedAST, stock, prices);
+          return evaluateAST(parsedAST, stock, currentPrices);
         } catch {
           return false;
         }
@@ -1109,8 +1126,8 @@ export function useStockScreener() {
       return []; // Return empty if active query fails compilation
     }
 
-    return stableSortStocks(result, sorting, prices);
-  }, [stocks, parsedAST, combinedFilterString, filterError, sorting, prices]);
+    return stableSortStocks(result, sorting, currentPrices);
+  }, [stocks, parsedAST, combinedFilterString, filterError, sorting]);
 
   return {
     stocks: filteredAndSortedStocks,

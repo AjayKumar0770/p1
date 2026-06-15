@@ -140,4 +140,38 @@ describe("AST Filter Compiler", () => {
     expect(sorted[0].symbol).toBe("A");
     expect(sorted[1].symbol).toBe("B");
   });
+
+  test("Evaluates OR and NOT conditions", () => {
+    const astOr = new Parser(new Lexer("peRatio > 50 OR sector == \"Financials\"").tokenize()).parse();
+    expect(evaluateAST(astOr, mockStock1)).toBe(false); // 28.5 is not > 50, sector is not Financials
+    expect(evaluateAST(astOr, mockStock2)).toBe(true); // sector is Financials
+
+    const astNot = new Parser(new Lexer("NOT (sector == \"Technology\")").tokenize()).parse();
+    expect(evaluateAST(astNot, mockStock1)).toBe(false);
+    expect(evaluateAST(astNot, mockStock2)).toBe(true);
+  });
+
+  test("Evaluates nested parentheses", () => {
+    const ast = new Parser(new Lexer("(peRatio < 30 AND sector == \"Technology\") OR sector == \"Financials\"").tokenize()).parse();
+    expect(evaluateAST(ast, mockStock1)).toBe(true); // Matches the AND
+    expect(evaluateAST(ast, mockStock2)).toBe(true); // Matches the OR
+  });
+
+  test("Handles string contains and !=", () => {
+    const astContains = new Parser(new Lexer("name contains \"Apple\"").tokenize()).parse();
+    expect(evaluateAST(astContains, mockStock1)).toBe(true);
+    expect(evaluateAST(astContains, mockStock2)).toBe(false);
+
+    const astNotEquals = new Parser(new Lexer("name != \"Apple Inc.\"").tokenize()).parse();
+    expect(evaluateAST(astNotEquals, mockStock1)).toBe(false);
+    expect(evaluateAST(astNotEquals, mockStock2)).toBe(true);
+  });
+
+  test("Handles invalid inputs gracefully", () => {
+    expect(() => new Parser(new Lexer("peRatio <").tokenize()).parse()).toThrow();
+    expect(() => new Parser(new Lexer("(peRatio < 10").tokenize()).parse()).toThrow();
+    
+    const lexerError = new Lexer("@invalid");
+    expect(() => lexerError.tokenize()).toThrow();
+  });
 });
